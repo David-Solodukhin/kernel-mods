@@ -9,12 +9,22 @@
 //#undef __KERNEL__
 #include <linux/netfilter_ipv4.h>
 //#define __KERNEL__
+#define LATENCY_DELAY 1
+#define LATENCY_REPEAT 2
+#define DROP_NORMAL 3
+#define DROP_ERASE 4
+
 
 MODULE_LICENSE("GPL");
-int latency = 0;
-int drop = 0;
-module_param(latency, int, 0);
-module_param(drop, int, 0);
+int ct = 0;
+int l = 3, d = 0, dt=0, lt=LATENCY_REPEAT;
+
+module_param(l, int, 0);
+module_param(d, int, 0);
+module_param(lt, int, 0);
+module_param(dt, int, 0);
+
+
 
 static struct nf_hook_ops nfho;   //net filter hook option struct
 char * last_packet;
@@ -26,19 +36,49 @@ unsigned int my_hook(void *priv, struct sk_buff *skb, const struct nf_hook_state
   if (!skb->data_len) {
 	return NF_ACCEPT;
 	}
-  printk(KERN_INFO "---Packet dropped but logged as accepted %d, %d\n", skb->data_len, skb->protocol);
-    //memcpy(last_packet, skb->data, min((size_t)skb->data_len, (size_t)1000)); //copy to intermediate location
-    last_packet_size = min((size_t)skb->data_len, (size_t)1000);
-    //memset(skb->data, '\0', skb->data_len);
-    //mdelay(200);
-      printk(KERN_INFO "latency: %d\n", latency);
 
-      if (latency == 5) {
-        latency = 0;
-        printk(KERN_INFO "packet was not accepted\n");
-        return NF_REPEAT;
+
+  printk(KERN_INFO "--hooked packet \n %d, %d\n", skb->data_len, skb->protocol);
+    memcpy(last_packet, skb->data, min((size_t)skb->data_len, (size_t)1000)); //copy to intermediate location
+    last_packet_size = min((size_t)skb->data_len, (size_t)1000);
+
+
+    switch(dt) {
+      case DROP_ERASE: {
+          memset(skb->data, '\0', skb->data_len);
+          printk("logged as accepted, but dropped\n");
+          return NF_ACCEPT;
       }
-      latency++;
+      case DROP_NORMAL: {
+        unsigned int i = 0;
+        get_random_bytes(&i, sizeof(unsigned int));
+        i = i % 100;
+        if (i <= d) {
+          printk("packet normal dropped\n");
+          return NF_DROP;
+        }
+
+      }
+    }
+
+
+    switch(lt) {
+      case LATENCY_DELAY: {
+        mdelay(l % 200);
+        break;
+      }
+      case LATENCY_REPEAT: {
+        if (ct == 0) {
+          ct = l;
+          printk("slowed down packet\n");
+          return NF_REPEAT;
+        }
+        ct--;
+        break;
+      }
+
+  }
+
       return NF_ACCEPT;
 
     /*if(refcount_read(&skb->users) == 1) {
@@ -110,9 +150,9 @@ static const struct file_operations proc_fops = {
 static int __init mod_init(void)
 {
     printk(KERN_INFO "INSERTING HOOK-------------------------------\n");
-last_packet = kmalloc(1000, GFP_KERNEL); //what
+    last_packet = kmalloc(1000, GFP_KERNEL); //what
     proc_create("p_data", 0, NULL, &proc_fops);
-
+    ct = l;
     init_filter_if();
     return 0;    // Non-zero return means that the module couldn't be loaded.
 }
