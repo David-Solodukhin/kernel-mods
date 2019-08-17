@@ -1,0 +1,1 @@
+cmd_/home/dave/Desktop/mem/memtest/memtest.ko := ld -r -m elf_x86_64 -z max-page-size=0x200000 -T ./scripts/module-common.lds --build-id  -o /home/dave/Desktop/mem/memtest/memtest.ko /home/dave/Desktop/mem/memtest/memtest.o /home/dave/Desktop/mem/memtest/memtest.mod.o ;  true
